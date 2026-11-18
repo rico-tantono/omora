@@ -1,0 +1,387 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  /* Aka-Omamori #FF6B4A, Torii-Red #C53030, Kishu-White #FEFBF3, Sumi-Ink #333333, Mossy-Garden #8BA889 */
+  --color-ember-900: #7d2020; /* lacquer: headings */
+  --color-ember-700: #c53030; /* Torii-Red: links, selected text, focus */
+  --color-ember-500: #ff6b4a; /* Aka-Omamori: primary accent fills */
+  --color-ember-400: #ff8466;
+  --color-ember-300: #ffa68e;
+  --color-ember-200: #ffd6c7;
+  --color-sage: #8ba889; /* Mossy-Garden: toggles, parks */
+  --color-sage-deep: #4d6a4f;
+  --color-paper: #fffdf9; /* Kishu-White, a touch whiter */
+  --color-card: #fffefc;
+  --color-sand: #f7f0e8;
+  --color-ink: #333333; /* Sumi-Ink */
+  --color-ink-soft: #6b6560;
+  --color-on-accent: #2b1d18; /* text on vermilion (white would only reach 2.8:1) */
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --shadow-float: 0 1px 2px rgba(51, 45, 42, 0.08), 0 4px 14px rgba(51, 45, 42, 0.08);
+  --shadow-sheet: 0 -1px 0 rgba(51, 45, 42, 0.06), 0 -8px 24px rgba(51, 45, 42, 0.1);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  overflow-x: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Base rules live in a layer so Tailwind utilities can override them */
+@layer base {
+  button {
+    cursor: pointer;
+    transition:
+      background-color 0.32s ease,
+      color 0.32s ease,
+      opacity 0.32s ease,
+      transform 0.22s ease;
+  }
+  button:not(:disabled):active {
+    transform: scale(0.985);
+  }
+  /* iOS zooms into inputs below 16px */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ember-700);
+  outline-offset: 2px;
+}
+
+/* Page background: matte warm paper with one soft orange glow, not a decoration layer */
+.app-bg {
+  background:
+    radial-gradient(90% 45% at 100% 0%, rgba(255, 107, 74, 0.2) 0%, transparent 65%),
+    radial-gradient(80% 40% at 0% 100%, rgba(255, 107, 74, 0.08) 0%, transparent 70%),
+    var(--color-paper);
+}
+
+/* Organic orange: irregular, overlapping color fields with a gently uneven edge */
+.surface-organic {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: white;
+  /* Torii top beam: the top edge curves (corners tipped up), the bottom edge is straight */
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 0Q50 9 100 0V100H0Z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 0Q50 9 100 0V100H0Z'/%3E%3C/svg%3E");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  background:
+    radial-gradient(55% 70% at 100% 0%, #ff6b4a 0%, rgba(255, 107, 74, 0) 68%),
+    radial-gradient(60% 80% at 6% 100%, #7d2020 0%, rgba(125, 32, 32, 0) 72%),
+    radial-gradient(45% 55% at 64% 108%, rgba(255, 154, 128, 0.35) 0%, transparent 70%),
+    linear-gradient(165deg, #cf3a2c 0%, #c53030 45%, #a02828 100%);
+}
+/* The darker cap along the curved top, like the lacquered roof of the beam */
+.surface-organic::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 0Q50 9 100 0V3.4Q50 12.4 0 3.4Z' fill='%237d2020' fill-opacity='.55'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+}
+
+/* Frosted glass, used only on controls and cards that float over the map or a photo */
+.glass {
+  background: rgba(255, 253, 249, 0.78);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 1px 2px rgba(35, 24, 21, 0.08);
+}
+.glass-sheet {
+  background: rgba(255, 253, 249, 0.86);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border-top: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 -6px 24px rgba(35, 24, 21, 0.1);
+}
+
+/* Photo area that dissolves into the page color, in eased steps */
+.fade-bottom {
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 50%, rgba(0, 0, 0, 0.6) 72%, rgba(0, 0, 0, 0.2) 90%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 50%, rgba(0, 0, 0, 0.6) 72%, rgba(0, 0, 0, 0.2) 90%, transparent 100%);
+}
+
+/* Same idea, fading toward the right */
+.fade-right {
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 45%, rgba(0, 0, 0, 0.55) 72%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 0%, #000 45%, rgba(0, 0, 0, 0.55) 72%, transparent 100%);
+}
+
+/* Add-memory buttons: orange-red lacquer with white content (4.5:1 at its lightest point) */
+.btn-lacquer {
+  color: #fff;
+  background: linear-gradient(135deg, #d83e2c 0%, #b82828 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 1px 2px rgba(125, 32, 32, 0.3);
+  text-shadow: 0 1px 1px rgba(60, 10, 10, 0.25);
+}
+.btn-lacquer:not(:disabled):active {
+  filter: brightness(0.94);
+}
+
+/* Soft light behind a lantern icon */
+.lantern-glow {
+  background: radial-gradient(circle, rgba(255, 107, 74, 0.5) 0%, rgba(255, 107, 74, 0) 68%);
+  animation: glow 5s ease-in-out infinite alternate;
+}
+@keyframes glow {
+  from {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+/* Subtle film grain over everything; it never blocks touches */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.2;
+  background-size: 180px 180px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .14 0 0 0 0 .09 0 0 0 0 .07 0 0 0 .7 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- Map ---------- */
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: #f7f5f1; /* near-white while tiles load */
+}
+/* A whisper of warmth and color on the grayscale tiles. Tune or remove here. */
+.leaflet-tile-pane {
+  filter: sepia(0.04) saturate(1.7);
+}
+.leaflet-control-attribution {
+  font-size: 10px;
+}
+
+/* Pin for a searched place that is not a memory yet */
+.memory-pin {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #FF6B4A;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgba(28, 18, 16, 0.35);
+  display: grid;
+  place-items: center;
+}
+.memory-pin::after {
+  content: "";
+  width: 32%;
+  height: 32%;
+  border-radius: 50%;
+  background: #fff;
+}
+.memory-pin.search {
+  background: #fff;
+  border-color: #FF6B4A;
+}
+.memory-pin.search::after {
+  background: #FF6B4A;
+}
+
+/* ---------- Avatar pins ---------- */
+/* Same silhouette for everyone; shape and ring tell the kinds apart:
+   personal = circle + orange ring, friend = circle + cream ring,
+   group = rounded square + deep terracotta ring. */
+.avatar-pin {
+  --pin-ring: #FF6B4A;
+  position: relative;
+  width: 44px;
+  height: 52px;
+  transform-origin: 50% 100%;
+  transition: transform 0.45s cubic-bezier(0.25, 0.8, 0.25, 1);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+.avatar-pin.is-friend {
+  --pin-ring: #FAF4E6;
+}
+.avatar-pin.is-group {
+  --pin-ring: #9c2c07;
+}
+.avatar-pin__frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 3px solid var(--pin-ring);
+  border-radius: 50%;
+  background: linear-gradient(150deg, #FF9A80, #d9531a);
+  box-shadow: 0 2px 5px rgba(51, 45, 42, 0.35);
+  transition: box-shadow 0.45s ease;
+}
+.avatar-pin.is-friend .avatar-pin__frame {
+  box-shadow:
+    0 0 0 1px rgba(51, 51, 51, 0.4),
+    0 2px 5px rgba(51, 45, 42, 0.35);
+}
+.avatar-pin.is-group .avatar-pin__frame {
+  border-radius: 14px;
+  background: linear-gradient(150deg, #FF7F61, #A02828);
+}
+.avatar-pin__frame img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.avatar-pin__initials {
+  font: 600 14px var(--font-display);
+  color: #fff;
+}
+.avatar-pin__tail {
+  position: absolute;
+  top: 40px;
+  left: 17px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--pin-ring);
+  transform: rotate(45deg);
+  box-shadow: 0 0 0 1px rgba(35, 24, 21, 0.25);
+}
+.avatar-pin.is-friend .avatar-pin__tail {
+  box-shadow: 0 0 0 1px rgba(35, 24, 21, 0.4);
+}
+.avatar-pin__stack {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  z-index: 2;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border: 1.5px solid #FAF4E6;
+  border-radius: 9px;
+  background: #231815;
+  color: #fff;
+  font: 600 11px/15px var(--font-sans);
+  text-align: center;
+}
+.avatar-pin.is-selected {
+  transform: scale(1.22);
+}
+.avatar-pin.is-selected .avatar-pin__frame {
+  box-shadow:
+    0 0 0 4px rgba(255, 107, 74, 0.38),
+    0 2px 6px rgba(51, 45, 42, 0.35);
+}
+
+/* A deeper orange for white text: Connections' featured group */
+.surface-deep {
+  position: relative;
+  overflow: hidden;
+  color: white;
+  /* Colors come from the group's picture via --g-* (see useAvatarTone) */
+  background:
+    radial-gradient(70% 90% at 100% 0%, var(--g-hi, rgba(255, 107, 74, 0.6)) 0%, transparent 62%),
+    radial-gradient(80% 90% at 0% 100%, var(--g-lo, rgba(125, 32, 32, 0.9)) 0%, transparent 70%),
+    linear-gradient(155deg, var(--g-a, #C53030) 0%, var(--g-b, #A02828) 55%, var(--g-c, #8A2323) 100%);
+  transition: background-color 0.3s ease;
+}
+
+/* ---------- Motion ---------- */
+@keyframes sheet-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes rise {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.animate-rise {
+  animation: rise 0.7s cubic-bezier(0.25, 0.8, 0.25, 1) 0.06s backwards;
+}
+.animate-sheet {
+  animation: sheet-up 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) 0.05s backwards;
+}
+.animate-fade {
+  animation: fade-in 0.8s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
